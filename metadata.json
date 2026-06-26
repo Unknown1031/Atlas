@@ -1,0 +1,6 @@
+{
+  "name": "Atlas",
+  "description": "Atlas - An integrated academic hub, planner, and mistake tracker for IBDP coursework, Extended Essay, CAS, and IPMAT preparation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
