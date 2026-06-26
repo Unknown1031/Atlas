@@ -1,0 +1,17 @@
+{
+  "name": "Atlas",
+  "short_name": "Atlas",
+  "description": "Atlas - An integrated academic hub, planner, and mistake tracker.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#f97316",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-512.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}
