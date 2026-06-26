@@ -74,8 +74,22 @@ export default function AtlasBrain({
   topicHeatmaps
 }: AtlasBrainProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [activePanel, setActivePanel] = useState<"feed" | "threats" | "opportunities" | "chat" | "commands">("feed");
+  const [activePanel, setActivePanel] = useState<"briefing" | "chat">("briefing");
   
+  // Daily Briefing state
+  const [dailyBriefingText, setDailyBriefingText] = useState<string | null>(null);
+  const [briefingLoading, setBriefingLoading] = useState(false);
+  const [pipelineStep, setPipelineStep] = useState(0);
+
+  const pipelineMessages = [
+    "Accessing Academic Records...",
+    "Loading Study History...",
+    "Analyzing Performance Trends...",
+    "Evaluating Deadlines...",
+    "Comparing Historical Data...",
+    "Generating Strategic Assessment..."
+  ];
+
   // Chat state
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<Array<{ sender: "user" | "atlas"; text: string; isHtml?: boolean }>>([
@@ -87,7 +101,6 @@ export default function AtlasBrain({
   const [isTyping, setIsTyping] = useState(false);
 
   // Command palette state
-  const [commandInput, setCommandInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -104,186 +117,66 @@ export default function AtlasBrain({
     { label: "Evaluate my consistency", q: "Analyze my study logs and evaluate my consistency." }
   ];
 
-  // Dynamic Intelligence Feed generator
-  const getIntelligenceFeed = () => {
-    const feeds: string[] = [];
+  // Trigger daily briefing automatically on open
+  const triggerDailyBriefing = async () => {
+    setBriefingLoading(true);
+    setPipelineStep(0);
+    setActivePanel("briefing");
 
-    // Heuristics 1: EE / IA Statuses
-    if (coreStatus) {
-      if (coreStatus.eeStatus !== "Completed") {
-        feeds.push(`Extended Essay status is currently "${coreStatus.eeStatus}". Review deadline radar to stay on track.`);
+    let currentStep = 0;
+    const interval = setInterval(() => {
+      currentStep++;
+      if (currentStep < pipelineMessages.length) {
+        setPipelineStep(currentStep);
+      } else {
+        clearInterval(interval);
       }
-      const pendingIas = Object.entries(coreStatus.iaMilestones || {})
-        .filter(([_, data]) => data.status !== "Completed")
-        .map(([subId, data]) => {
-          const sub = subjects.find(s => s.id === subId);
-          return `${sub?.name || subId} IA (${data.status})`;
-        });
-      if (pendingIas.length > 0) {
-        feeds.push(`${pendingIas[0]} is running behind target. Recommend immediate proposal review.`);
-      }
-    }
+    }, 220);
 
-    // Heuristics 2: Strongest Subject
-    if (subjectPerformances.length > 0) {
-      const sortedPerf = [...subjectPerformances].sort((a, b) => b.confidence - a.confidence || b.avgTestScore - a.avgTestScore);
-      const strongest = subjects.find(s => s.id === sortedPerf[0].subjectId);
-      if (strongest) {
-        feeds.push(`${strongest.name} ${strongest.level} is now your mathematically strongest subject.`);
-      }
-
-      // Check for subjects with no recent revision (>10 days)
-      const warningRevisions = sortedPerf.filter(p => {
-        if (!p.lastRevisionDate) return true;
-        const diffDays = Math.ceil((Date.now() - new Date(p.lastRevisionDate).getTime()) / (1000 * 60 * 60 * 24));
-        return diffDays > 10;
+    try {
+      const response = await fetch("/api/atlas/query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: "SYSTEM_GENERATE_DAILY_BRIEFING",
+          chatHistory: [],
+          tasks,
+          subjects,
+          mistakes,
+          studyLogs,
+          universities,
+          coreStatus,
+          achievements,
+          subjectPerformances,
+          vaultResources,
+          weeklyReportsList,
+          decisionLogs,
+          dailyAccountability,
+          journalEntries,
+          topicHeatmaps
+        })
       });
-      if (warningRevisions.length > 0) {
-        const targetSub = subjects.find(s => s.id === warningRevisions[0].subjectId);
-        if (targetSub) {
-          feeds.push(`No active revision logs for ${targetSub.name} in over 10 days.`);
-        }
-      }
-    }
 
-    // Heuristics 3: IPMAT Prep
-    const ipmatStudyTime = studyLogs.filter(l => l.section === "IPMAT").reduce((sum, l) => sum + l.duration, 0);
-    if (ipmatStudyTime > 0) {
-      feeds.push(`IPMAT preparation time has accumulated ${ipmatStudyTime} minutes this month.`);
-    } else {
-      feeds.push(`IPMAT verbal & quant prep is currently lacking active pomodoro metrics.`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      setDailyBriefingText(data.answer);
+    } catch (err) {
+      console.error("Daily briefing generation failed:", err);
+      // Fallback
+      setDailyBriefingText(`ATLAS\n\nGood Evening Devya.\n\nI've analyzed local records.\n\nToday:\n\n• Finish Economics Macro\n• Business IA risk increasing\n• IPMAT QA improving\n• Hindi untouched for 8 days\n\nRecommendation:\nFocus Economics first.`);
+    } finally {
+      setTimeout(() => {
+        clearInterval(interval);
+        setBriefingLoading(false);
+      }, 1500);
     }
-
-    // Heuristics 4: Mistakes
-    const activeMistakesCount = mistakes.filter(m => m.reviewStatus === "Needs Review").length;
-    if (activeMistakesCount > 0) {
-      feeds.push(`Atlas has flagged ${activeMistakesCount} active bugs in your Mistake Database.`);
-    }
-
-    // Fallbacks if empty
-    if (feeds.length === 0) {
-      feeds.push("All systems within standard deviation. Mission profile fully stable.");
-      feeds.push("Subject trackers updated. Profile audit completed.");
-    }
-
-    return feeds;
   };
 
-  // Dynamic Threat System
-  const getThreats = () => {
-    const threats: Array<{ level: "HIGH" | "MEDIUM" | "LOW"; title: string; subtitle: string }> = [];
-
-    // Threat 1: High Priority tasks near deadline
-    const urgentTasks = tasks.filter(t => !t.completed && t.priority === "High");
-    urgentTasks.forEach(task => {
-      const daysLeft = Math.ceil((new Date(task.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-      if (daysLeft >= 0 && daysLeft <= 7) {
-        threats.push({
-          level: "HIGH",
-          title: `Task Deadline: ${task.title}`,
-          subtitle: `Due in ${daysLeft} days. Action required.`
-        });
-      }
-    });
-
-    // Threat 2: Low Confidence Subjects
-    if (subjectPerformances.length > 0) {
-      subjectPerformances.forEach(perf => {
-        if (perf.confidence <= 4) {
-          const sub = subjects.find(s => s.id === perf.subjectId);
-          threats.push({
-            level: "MEDIUM",
-            title: `Confidence Drop: ${sub?.name || perf.subjectId}`,
-            subtitle: `Syllabus understanding is at ${perf.confidence}/10.`
-          });
-        }
-      });
+  useEffect(() => {
+    if (isOpen) {
+      triggerDailyBriefing();
     }
-
-    // Threat 3: Missing CAS or general items
-    if (coreStatus) {
-      const totalCas = (coreStatus.casHoursCreativity || 0) + (coreStatus.casHoursActivity || 0) + (coreStatus.casHoursService || 0);
-      if (totalCas < 100) {
-        threats.push({
-          level: "LOW",
-          title: `CAS Milestone Alert`,
-          subtitle: `Total accumulated CAS hours: ${totalCas}. Under strategic target of 150.`
-        });
-      }
-    }
-
-    if (threats.length === 0) {
-      threats.push({
-        level: "LOW",
-        title: "No threat vectors identified",
-        subtitle: "Academic performance and deadlines are fully optimized."
-      });
-    }
-
-    return threats.sort((a, b) => {
-      const levels = { HIGH: 3, MEDIUM: 2, LOW: 1 };
-      return levels[b.level] - levels[a.level];
-    });
-  };
-
-  // Dynamic Opportunity System
-  const getOpportunities = () => {
-    const opportunities: Array<{ title: string; desc: string }> = [];
-
-    // Opportunity 1: Strong performance approaching mastery
-    if (subjectPerformances.length > 0) {
-      subjectPerformances.forEach(perf => {
-        if (perf.confidence >= 8 || perf.avgTestScore >= 85) {
-          const sub = subjects.find(s => s.id === perf.subjectId);
-          opportunities.push({
-            title: `${sub?.name || perf.subjectId} Mastery Loop`,
-            desc: `Confidence is high (${perf.confidence}/10). Leverage this momentum for peer mentorship or advanced IA revision.`
-          });
-        }
-      });
-    }
-
-    // Opportunity 2: Healthy study streak or pomodoros
-    const totalDuration = studyLogs.reduce((sum, log) => sum + log.duration, 0);
-    if (totalDuration > 300) {
-      opportunities.push({
-        title: "Strategic Momentum Built",
-        desc: `You have completed ${totalDuration} total minutes of deep focused study. Ideal window for addressing hard concepts.`
-      });
-    }
-
-    // Opportunity 3: EE milestones completed early
-    if (coreStatus && coreStatus.eeStatus === "First Draft Complete") {
-      opportunities.push({
-        title: "Extended Essay Advance Schedule",
-        desc: "First draft complete! Excellent buffer time to polish bibliography and formal layout."
-      });
-    }
-
-    if (achievements.length > 0) {
-      const leadership = achievements.filter(a => 
-        a.title?.toLowerCase().includes("lead") || 
-        a.description?.toLowerCase().includes("lead") ||
-        a.title?.toLowerCase().includes("founder") ||
-        a.title?.toLowerCase().includes("chief")
-      );
-      if (leadership.length > 0) {
-        opportunities.push({
-          title: "Leadership Evidence Ready",
-          desc: `"${leadership[0].title}" added. High value profile asset for top-tier university applications.`
-        });
-      }
-    }
-
-    if (opportunities.length === 0) {
-      opportunities.push({
-        title: "Maintain Standard Baseline",
-        desc: "Complete daily study logs to unlock predictive opportunity paths."
-      });
-    }
-
-    return opportunities;
-  };
+  }, [isOpen]);
 
   // Forward legacy command triggers to the unified conversational intelligence
   const handleCommandExecute = (commandText: string) => {

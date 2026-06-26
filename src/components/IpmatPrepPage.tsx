@@ -104,26 +104,56 @@ export default function IpmatPrepPage({
 
   // Syllabus topics states
   const [qaTopics, setQaTopics] = useState<{ key: string; label: string }[]>(() => {
-    const saved = localStorage.getItem("atlas_ipmat_qa_topics");
-    return saved ? JSON.parse(saved) : [
+    const defaultQA = [
       { key: "qa_numbers", label: "Number System & Properties" },
-      { key: "qa_percentages", label: "Arithmetic (Percentages, SI-CI)" },
-      { key: "qa_equations", label: "Algebra (Equations, Inequalities)" },
-      { key: "qa_sequences", label: "Sequences, Series & Logarithms" },
-      { key: "qa_geometry", label: "Geometry & Coordinate Systems" },
-      { key: "qa_combinatorics", label: "Combinatorics (P&C, Probability)" },
-      { key: "qa_matrices", label: "Matrices & Determinants (HL Overlap)" },
+      { key: "qa_arithmetic", label: "Arithmetic (Percentages, Profit & Loss, SI-CI)" },
+      { key: "qa_algebra", label: "Algebra (Equations, Inequalities, Logarithms)" },
+      { key: "qa_sequences", label: "Sequences, Series & Progressions" },
+      { key: "qa_geometry", label: "Geometry, Mensuration & Trigonometry" },
+      { key: "qa_combinatorics", label: "Combinatorics (Permutations & Combinations, Probability)" },
+      { key: "qa_matrices", label: "Matrices, Determinants & Set Theory" },
+      { key: "qa_di", label: "Data Interpretation (Tables, Graphs, Caselets)" },
+      { key: "qa_lr", label: "Logical Reasoning (Syllogisms, Arrangements)" },
     ];
+    const saved = localStorage.getItem("atlas_ipmat_qa_topics");
+    if (!saved) return defaultQA;
+    try {
+      const parsed = JSON.parse(saved);
+      // If the saved topics are outdated or incomplete, migrate them
+      if (parsed.length < defaultQA.length || !parsed.some((t: any) => t.key === "qa_di")) {
+        localStorage.setItem("atlas_ipmat_qa_topics", JSON.stringify(defaultQA));
+        return defaultQA;
+      }
+      return parsed;
+    } catch (e) {
+      return defaultQA;
+    }
   });
 
   const [vaTopics, setVaTopics] = useState<{ key: string; label: string }[]>(() => {
-    const saved = localStorage.getItem("atlas_ipmat_va_topics");
-    return saved ? JSON.parse(saved) : [
-      { key: "va_rc", label: "Reading Comprehension Strategy" },
-      { key: "va_jumbles", label: "Para-jumbles & Critical Reasoning" },
-      { key: "va_grammar", label: "Sentence Correction & Grammar" },
-      { key: "va_vocab", label: "Vocabulary & Word Synonyms" },
+    const defaultVA = [
+      { key: "va_rc", label: "Reading Comprehension" },
+      { key: "va_completion", label: "Sentence Completion" },
+      { key: "va_vocab", label: "Vocabulary" },
+      { key: "va_correction", label: "Sentence Correction" },
+      { key: "va_jumbles", label: "Parajumbles" },
+      { key: "va_incorrect", label: "Incorrect Word" },
+      { key: "va_paracomp", label: "Paracompletion" },
+      { key: "va_analysis", label: "Conversation Analysis" },
     ];
+    const saved = localStorage.getItem("atlas_ipmat_va_topics");
+    if (!saved) return defaultVA;
+    try {
+      const parsed = JSON.parse(saved);
+      // Migrate if outdated
+      if (parsed.length < defaultVA.length || !parsed.some((t: any) => t.key === "va_incorrect")) {
+        localStorage.setItem("atlas_ipmat_va_topics", JSON.stringify(defaultVA));
+        return defaultVA;
+      }
+      return parsed;
+    } catch (e) {
+      return defaultVA;
+    }
   });
 
   const saveQaTopics = (updated: { key: string; label: string }[]) => {

@@ -56,13 +56,15 @@ export default function DeadlineRadar({
     return diffDays;
   };
 
-  // Safe color coding: Green (>30 days), Yellow (7-30 days), Red (<7 days / overdue)
+  // Urgent spectrum: Deep Red (Overdue) -> Rose (0-3 days) -> Orange (4-7 days) -> Yellow (8-14 days) -> Green (15-30 days) -> Slate (Safe >30 days)
   const getUrgencyLevel = (daysRemaining: number, completed: boolean) => {
-    if (completed) return { color: "text-emerald-400 border-emerald-500/20 bg-emerald-500/5", label: "Completed" };
-    if (daysRemaining < 0) return { color: "text-rose-500 border-rose-500/30 bg-rose-500/10", label: "Overdue" };
-    if (daysRemaining < 7) return { color: "text-rose-400 border-rose-500/20 bg-rose-500/5", label: "Critical" };
-    if (daysRemaining <= 30) return { color: "text-amber-400 border-amber-500/20 bg-amber-500/5", label: "Soon" };
-    return { color: "text-emerald-400 border-emerald-500/20 bg-emerald-500/5", label: "Safe" };
+    if (completed) return { color: "border-zinc-800/40 bg-zinc-950/20 text-zinc-500 opacity-60", label: "Completed" };
+    if (daysRemaining < 0) return { color: "border-red-600/70 bg-red-950/40 text-red-200 shadow-[0_0_15px_rgba(239,68,68,0.12)] animate-pulse", label: "Overdue" };
+    if (daysRemaining <= 3) return { color: "border-rose-500/60 bg-rose-950/35 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.1)]", label: "Critical" };
+    if (daysRemaining <= 7) return { color: "border-orange-500/50 bg-orange-950/25 text-orange-300 shadow-[0_0_10px_rgba(249,115,22,0.08)]", label: "Urgent" };
+    if (daysRemaining <= 14) return { color: "border-amber-500/40 bg-amber-950/15 text-amber-300", label: "Soon" };
+    if (daysRemaining <= 30) return { color: "border-emerald-500/35 bg-emerald-950/5 text-emerald-400", label: "Healthy" };
+    return { color: "border-zinc-850 bg-zinc-900/40 text-zinc-400", label: "Safe" };
   };
 
   // Map of tasks with computed offset and urgency

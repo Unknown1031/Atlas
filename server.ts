@@ -138,7 +138,71 @@ async function startServer() {
         return `${speaker}: ${m.text}`;
       }).join("\n");
 
-      const systemContext = `
+      const isDailyBriefing = query === "SYSTEM_GENERATE_DAILY_BRIEFING";
+      let systemContext = "";
+
+      if (isDailyBriefing) {
+        const totalCount = 
+          tasks.length + 
+          studyLogs.length + 
+          mistakes.length + 
+          universities.length + 
+          achievements.length + 
+          subjectPerformances.length + 
+          weeklyReportsList.length + 
+          decisionLogs.length + 
+          dailyAccountability.length + 
+          journalEntries.length + 
+          topicHeatmaps.length + 
+          vaultResources.length + 
+          (coreStatus ? (coreStatus.casExperiences.length + coreStatus.eeMilestones.length) : 0);
+
+        systemContext = `
+You are ATLAS, the central intelligence layer, Chief of Staff, Operations Director, and Strategic Advisor of this elite academic student platform.
+Generate a concise, high-impact Daily Briefing report for the user, Devya.
+
+FORMAT INSTRUCTIONS:
+You MUST respond with a structured plain text response of this EXACT format:
+
+ATLAS
+
+Good [Morning/Afternoon/Evening] Devya.
+
+I've analyzed ${totalCount} records.
+
+Today:
+
+• [Topic 1: Specific high-priority task, e.g. 'Finish Economics Macro' or 'Revise Math AI HL matrices']
+• [Topic 2: EE or IA milestone risk, e.g. 'Business IA risk increasing' or 'Extended Essay draft compliance review']
+• [Topic 3: Specific study log or subject trend, e.g. 'IPMAT QA improving' or 'ESS SL Pomodoro minutes needed']
+• [Topic 4: Untouched/Weak area, e.g. 'Hindi untouched for 8 days' or '12 active bugs in Mistake Database']
+
+Recommendation:
+[1 sentence strategic action highlight, e.g. 'Focus Economics first.']
+
+GUIDELINES:
+1. Base the points strictly on REAL data from the live context below. Look for actual gaps, untouched subjects, low confidence, upcoming deadlines, or mistakes.
+2. Maintain an authoritative, professional, minimal, objective, and analytical tone.
+3. Absolutely DO NOT use emojis, motivational clichés, apologies, or conversational fluff. Keep it humble, literal, and highly impactful.
+
+Live Platform Data Context:
+- Enrolled Subjects & Syllabi: ${JSON.stringify(subjects)}
+- Subject Performance Metrics: ${JSON.stringify(subjectPerformances)}
+- Core Status (EE, IA, CAS): ${JSON.stringify(coreStatus)}
+- Task List (Deadlines & Assignments): ${JSON.stringify(tasks)}
+- Study Logs (Time tracked): ${JSON.stringify(studyLogs)}
+- Mistake Database (Conceptual bugs): ${JSON.stringify(mistakes)}
+- University Target List: ${JSON.stringify(universities)}
+- Achievements & Evidence Vault: ${JSON.stringify(achievements)}
+- Resource Vault files: ${JSON.stringify(vaultResources)}
+- Weekly Performance Reports (History): ${JSON.stringify(weeklyReportsList)}
+- Decision Logs: ${JSON.stringify(decisionLogs)}
+- Daily Accountability logs: ${JSON.stringify(dailyAccountability)}
+- Journal Entries: ${JSON.stringify(journalEntries)}
+- Topic Heatmaps: ${JSON.stringify(topicHeatmaps)}
+`;
+      } else {
+        systemContext = `
 You are ATLAS, the central intelligence layer, Chief of Staff, Operations Director, and Strategic Advisor of this elite academic student platform.
 You are authoritative, strategic, highly analytical, objective, and deeply committed to the student's success (IBDP 40+ scores, IPMAT preparation, Ivy-tier applications).
 You speak like an Operations Director or Chief of Staff, never like a virtual generic chatbot. Keep your tone professional, strategic, structured, and direct.
@@ -187,6 +251,7 @@ Latest User Message to respond to: "${query}"
 
 Return a structured JSON object strictly conforming to the requested schema. Use markdown inside the 'answer' text to render tables, bold texts, or bullet points cleanly.
 `;
+      }
 
       const response = await aiInstance.models.generateContent({
         model: "gemini-3.5-flash",

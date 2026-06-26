@@ -296,53 +296,44 @@ export default function IeCasPage({
           </div>
 
           {/* CAS aggregated Hour bars - Updated to IB Requirements (Series, Single Day, Project) */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4" id="cas-metrics">
-            <div className="bg-amber-500/5 p-4 rounded-2xl border border-amber-500/20 flex flex-col justify-between">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-[10px] font-mono uppercase text-amber-500 font-bold tracking-wider">1 Collaborative Project</span>
-                <span className="font-mono text-xs text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">{status.casExperiences.filter(e => e.experienceType === "Project").length} / 1</span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3" id="cas-metrics">
+            <div className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-850 flex flex-col justify-between">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-mono uppercase text-zinc-400 font-semibold">Project</span>
+                <span className="font-mono text-xs text-zinc-100 font-bold">{status.casExperiences.filter(e => e.experienceType === "Project").length} / 1</span>
               </div>
-              <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden mt-1">
+              <div className="w-full bg-zinc-900 h-1 rounded-full overflow-hidden mt-2.5">
                 <div 
                   className="bg-amber-500 h-full transition-all duration-500" 
                   style={{ width: `${Math.min(100, (status.casExperiences.filter(e => e.experienceType === "Project").length / 1) * 100)}%` }}
                 />
               </div>
-              <p className="text-[8px] text-zinc-500 font-mono mt-1.5 uppercase">
-                {status.casExperiences.filter(e => e.experienceType === "Project").length >= 1 ? "✅ Requirement satisfied" : "⏳ 1 sustained Project required"}
-              </p>
             </div>
 
-            <div className="bg-indigo-500/5 p-4 rounded-2xl border border-indigo-500/20 flex flex-col justify-between">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-[10px] font-mono uppercase text-indigo-400 font-bold tracking-wider">Long-Term Series (5+)</span>
-                <span className="font-mono text-xs text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full">{status.casExperiences.filter(e => e.experienceType === "Series").length} / 5</span>
+            <div className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-850 flex flex-col justify-between">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-mono uppercase text-zinc-400 font-semibold">Series</span>
+                <span className="font-mono text-xs text-zinc-100 font-bold">{status.casExperiences.filter(e => e.experienceType === "Series").length} / 5</span>
               </div>
-              <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden mt-1">
+              <div className="w-full bg-zinc-900 h-1 rounded-full overflow-hidden mt-2.5">
                 <div 
                   className="bg-indigo-500 h-full transition-all duration-500" 
                   style={{ width: `${Math.min(100, (status.casExperiences.filter(e => e.experienceType === "Series").length / 5) * 100)}%` }}
                 />
               </div>
-              <p className="text-[8px] text-zinc-500 font-mono mt-1.5 uppercase">
-                {status.casExperiences.filter(e => e.experienceType === "Series").length >= 5 ? "✅ Requirement satisfied" : `⏳ ${Math.max(0, 5 - status.casExperiences.filter(e => e.experienceType === "Series").length)} more series needed`}
-              </p>
             </div>
 
-            <div className="bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20 flex flex-col justify-between">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-[10px] font-mono uppercase text-emerald-400 font-bold tracking-wider">Single Day events (10-12+)</span>
-                <span className="font-mono text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">{status.casExperiences.filter(e => e.experienceType === "Single Day").length} / 11</span>
+            <div className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-850 flex flex-col justify-between">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-mono uppercase text-zinc-400 font-semibold">Single Day</span>
+                <span className="font-mono text-xs text-zinc-100 font-bold">{status.casExperiences.filter(e => e.experienceType === "Single Day").length} / 11</span>
               </div>
-              <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden mt-1">
+              <div className="w-full bg-zinc-900 h-1 rounded-full overflow-hidden mt-2.5">
                 <div 
                   className="bg-emerald-500 h-full transition-all duration-500" 
                   style={{ width: `${Math.min(100, (status.casExperiences.filter(e => e.experienceType === "Single Day").length / 11) * 100)}%` }}
                 />
               </div>
-              <p className="text-[8px] text-zinc-500 font-mono mt-1.5 uppercase">
-                {status.casExperiences.filter(e => e.experienceType === "Single Day").length >= 11 ? "✅ Requirement satisfied" : `⏳ ${Math.max(0, 11 - status.casExperiences.filter(e => e.experienceType === "Single Day").length)} more single-days needed`}
-              </p>
             </div>
           </div>
 
