@@ -340,34 +340,14 @@ export default function AtlasBrain({
             {/* Tab Navigation inside Mission Control */}
             <div className="flex border-b border-zinc-800/50 bg-zinc-900/20 px-2 pt-1" id="atlas-panel-tabs">
               <button
-                onClick={() => setActivePanel("feed")}
+                onClick={() => setActivePanel("briefing")}
                 className={`px-3 py-2 text-[10px] font-mono uppercase tracking-wider font-semibold transition-all border-b-2 ${
-                  activePanel === "feed" 
+                  activePanel === "briefing" 
                     ? "border-orange-500 text-orange-400" 
                     : "border-transparent text-zinc-500 hover:text-zinc-300"
                 }`}
               >
-                Intelligence Feed
-              </button>
-              <button
-                onClick={() => setActivePanel("threats")}
-                className={`px-3 py-2 text-[10px] font-mono uppercase tracking-wider font-semibold transition-all border-b-2 ${
-                  activePanel === "threats" 
-                    ? "border-red-500 text-red-400" 
-                    : "border-transparent text-zinc-500 hover:text-zinc-300"
-                }`}
-              >
-                Threats
-              </button>
-              <button
-                onClick={() => setActivePanel("opportunities")}
-                className={`px-3 py-2 text-[10px] font-mono uppercase tracking-wider font-semibold transition-all border-b-2 ${
-                  activePanel === "opportunities" 
-                    ? "border-emerald-500 text-emerald-400" 
-                    : "border-transparent text-zinc-500 hover:text-zinc-300"
-                }`}
-              >
-                Opportunities
+                Daily Briefing
               </button>
               <button
                 onClick={() => setActivePanel("chat")}
@@ -384,134 +364,48 @@ export default function AtlasBrain({
             {/* Active System Panels */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-zinc-950" id="atlas-panel-content">
               
-              {/* TAB 1: INTELLIGENCE FEED */}
-              {activePanel === "feed" && (
+              {/* TAB 1: EXECUTIVE BRIEFING */}
+              {activePanel === "briefing" && (
                 <motion.div 
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="space-y-3"
+                  className="space-y-3.5"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
-                      <Terminal size={12} className="text-orange-500" />
-                      <span>Live Intelligence Feed</span>
-                    </span>
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                  </div>
-
-                  <div className="space-y-2.5">
-                    {getIntelligenceFeed().map((feed, idx) => (
-                      <div 
-                        key={idx} 
-                        className="p-3 bg-zinc-900/40 border border-zinc-850/80 rounded-xl text-zinc-300 text-xs leading-relaxed flex items-start space-x-2.5 hover:border-zinc-800 transition-all shadow-sm"
-                      >
-                        <Zap size={14} className="text-orange-500 mt-0.5 shrink-0" />
-                        <span>{feed}</span>
+                  {briefingLoading ? (
+                    <div className="flex flex-col items-center justify-center py-20 px-4 space-y-6">
+                      <div className="relative">
+                        <div className="w-12 h-12 rounded-full border border-orange-500/20 border-t-orange-500 animate-spin" />
+                        <span className="absolute inset-0 flex items-center justify-center font-mono text-[9px] text-orange-500">OPS</span>
                       </div>
-                    ))}
-                  </div>
-
-                  {/* Operational Summary Mini-Panel */}
-                  <div className="mt-5 p-4 bg-zinc-900/20 border border-zinc-800/40 rounded-xl space-y-2">
-                    <h4 className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest font-bold">Operating Database Summary</h4>
-                    <div className="grid grid-cols-3 gap-2.5 text-center">
-                      <div className="p-2 bg-black border border-zinc-850/60 rounded-lg">
-                        <span className="block text-[11px] text-zinc-500">Tracked Tasks</span>
-                        <span className="text-sm font-bold font-mono text-zinc-200">{tasks.length}</span>
-                      </div>
-                      <div className="p-2 bg-black border border-zinc-850/60 rounded-lg">
-                        <span className="block text-[11px] text-zinc-500">Unreviewed Bugs</span>
-                        <span className="text-sm font-bold font-mono text-red-400">{mistakes.filter(m => m.reviewStatus === "Needs Review").length}</span>
-                      </div>
-                      <div className="p-2 bg-black border border-zinc-850/60 rounded-lg">
-                        <span className="block text-[11px] text-zinc-500">Pomodoros</span>
-                        <span className="text-sm font-bold font-mono text-orange-400">{studyLogs.length}</span>
+                      <div className="space-y-2 text-center">
+                        <p className="text-xs font-mono text-zinc-300 font-bold animate-pulse">{pipelineMessages[pipelineStep]}</p>
+                        <p className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest">Compiling tactical metrics...</p>
                       </div>
                     </div>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* TAB 2: THREAT DETECTION */}
-              {activePanel === "threats" && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="space-y-3.5"
-                >
-                  <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
-                    <ShieldAlert size={13} className="text-red-500 animate-pulse" />
-                    <span>威胁检测 // Active Risk Assessment</span>
-                  </span>
-
-                  <div className="space-y-2.5">
-                    {getThreats().map((threat, idx) => (
-                      <div 
-                        key={idx} 
-                        className={`p-3.5 border rounded-xl flex items-start gap-3 transition-all ${
-                          threat.level === "HIGH" 
-                            ? "bg-red-500/5 border-red-500/20 text-red-200" 
-                            : threat.level === "MEDIUM" 
-                              ? "bg-amber-500/5 border-amber-500/20 text-amber-200" 
-                              : "bg-zinc-900/40 border-zinc-800 text-zinc-300"
-                        }`}
-                      >
-                        <AlertTriangle className={`shrink-0 mt-0.5 ${
-                          threat.level === "HIGH" 
-                            ? "text-red-500" 
-                            : threat.level === "MEDIUM" 
-                              ? "text-amber-500" 
-                              : "text-zinc-500"
-                        }`} size={15} />
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-xs">{threat.title}</span>
-                            <span className={`px-1 rounded text-[8px] font-mono font-bold ${
-                              threat.level === "HIGH" 
-                                ? "bg-red-500/20 text-red-400" 
-                                : threat.level === "MEDIUM" 
-                                  ? "bg-amber-500/20 text-amber-400" 
-                                  : "bg-zinc-800 text-zinc-400"
-                            }`}>{threat.level}</span>
-                          </div>
-                          <p className="text-[11px] text-zinc-400 leading-relaxed">{threat.subtitle}</p>
-                        </div>
+                  ) : (
+                    <div className="space-y-3 font-sans text-xs text-zinc-300 leading-relaxed">
+                      <div className="flex items-center justify-between border-b border-zinc-900 pb-2">
+                        <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest flex items-center gap-1.5">
+                          <Terminal size={12} className="text-orange-500" />
+                          <span>Executive Intelligence Pipeline</span>
+                        </span>
+                        <button 
+                          onClick={triggerDailyBriefing}
+                          className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+                          title="Recalculate Briefing"
+                        >
+                          <RefreshCw size={11} className="hover:animate-spin" />
+                        </button>
                       </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-
-              {/* TAB 3: OPPORTUNITY DETECTION */}
-              {activePanel === "opportunities" && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="space-y-3.5"
-                >
-                  <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
-                    <TrendingUp size={13} className="text-emerald-500" />
-                    <span>机会发现 // Performance Enhancers</span>
-                  </span>
-
-                  <div className="space-y-2.5">
-                    {getOpportunities().map((op, idx) => (
-                      <div 
-                        key={idx} 
-                        className="p-3.5 bg-emerald-500/5 border border-emerald-500/20 rounded-xl flex items-start gap-3 hover:border-emerald-500/40 transition-all"
-                      >
-                        <Zap className="text-emerald-500 shrink-0 mt-0.5" size={15} />
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-xs text-emerald-300 block">{op.title}</span>
-                          <p className="text-[11px] text-zinc-400 leading-relaxed">{op.desc}</p>
-                        </div>
+                      <div className="whitespace-pre-line font-sans text-[13px] tracking-tight text-zinc-200 leading-relaxed bg-zinc-900/20 border border-zinc-900/60 p-4 rounded-xl shadow-inner">
+                        {dailyBriefingText || "No active briefing computed."}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  )}
                 </motion.div>
               )}
 
-              {/* TAB 4: STRATEGY CHAT */}
+              {/* TAB 2: STRATEGY CHAT */}
               {activePanel === "chat" && (
                 <motion.div 
                   initial={{ opacity: 0, y: 10 }}
