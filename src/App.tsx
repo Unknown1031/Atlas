@@ -1,4 +1,12 @@
 import React, { useState, useEffect } from "react";
+import { auth, db } from "./lib/firebase";
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged
+} from "firebase/auth";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 import Sidebar from "./components/Sidebar";
 import DashboardHome from "./components/DashboardHome";
 import SubjectPage from "./components/SubjectPage";
@@ -276,42 +284,46 @@ export default function App() {
       setJournalEntries(INITIAL_JOURNAL_ENTRIES);
     }
 
-    // 12. Check saved cloud authentication and pull synced data
-    const savedAuth = localStorage.getItem("student_os_cloud_auth");
-    if (savedAuth) {
-      try {
-        const { email, password } = JSON.parse(savedAuth);
-        setCloudEmail(email);
-        setCloudPassword(password);
+    // 12. Listen to Firebase auth changes to pull synced data
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
         setIsCloudLoggedIn(true);
-        
-        // Fetch background backup data on load
-        fetch("/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password })
-        })
-        .then(res => res.json())
-        .then(data => {
-          if (data.state) {
+        setCloudEmail(user.email || "");
+        try {
+          const userDocRef = doc(db, "users", user.uid);
+          const docSnap = await getDoc(userDocRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
             const s = data.state;
-            if (s.subjects) setSubjects(s.subjects);
-            if (s.tasks) setTasks(s.tasks);
-            if (s.mistakes) setMistakes(s.mistakes);
-            if (s.studyLogs) setStudyLogs(s.studyLogs);
-            if (s.universities) setUniversities(s.universities);
-            if (s.coreStatus) setCoreStatus(s.coreStatus);
-            if (s.achievements) setAchievements(s.achievements);
-            if (s.subjectPerformances) setSubjectPerformances(s.subjectPerformances);
-            if (s.vaultResources) setVaultResources(s.vaultResources);
-            if (s.topicHeatmaps) setTopicHeatmaps(s.topicHeatmaps);
-            if (s.weeklyReportsList) setWeeklyReportsList(s.weeklyReportsList);
-            if (s.userProfile) setUserProfile(s.userProfile);
+            if (s) {
+              if (s.subjects) { setSubjects(s.subjects); localStorage.setItem("student_os_subjects", JSON.stringify(s.subjects)); }
+              if (s.tasks) { setTasks(s.tasks); localStorage.setItem("student_os_tasks", JSON.stringify(s.tasks)); }
+              if (s.mistakes) { setMistakes(s.mistakes); localStorage.setItem("student_os_mistakes", JSON.stringify(s.mistakes)); }
+              if (s.studyLogs) { setStudyLogs(s.studyLogs); localStorage.setItem("student_os_study_logs", JSON.stringify(s.studyLogs)); }
+              if (s.universities) { setUniversities(s.universities); localStorage.setItem("student_os_universities", JSON.stringify(s.universities)); }
+              if (s.coreStatus) { setCoreStatus(s.coreStatus); localStorage.setItem("student_os_core_status", JSON.stringify(s.coreStatus)); }
+              if (s.achievements) { setAchievements(s.achievements); localStorage.setItem("student_os_achievements", JSON.stringify(s.achievements)); }
+              if (s.subjectPerformances) { setSubjectPerformances(s.subjectPerformances); localStorage.setItem("student_os_subject_performances", JSON.stringify(s.subjectPerformances)); }
+              if (s.vaultResources) { setVaultResources(s.vaultResources); localStorage.setItem("student_os_vault_resources", JSON.stringify(s.vaultResources)); }
+              if (s.topicHeatmaps) { setTopicHeatmaps(s.topicHeatmaps); localStorage.setItem("student_os_topic_heatmaps", JSON.stringify(s.topicHeatmaps)); }
+              if (s.weeklyReportsList) { setWeeklyReportsList(s.weeklyReportsList); localStorage.setItem("student_os_weekly_reports_list", JSON.stringify(s.weeklyReportsList)); }
+              if (s.userProfile) { setUserProfile(s.userProfile); localStorage.setItem("student_os_user_profile", JSON.stringify(s.userProfile)); }
+              if (s.decisionLogs) { setDecisionLogs(s.decisionLogs); localStorage.setItem("student_os_decision_logs", JSON.stringify(s.decisionLogs)); }
+              if (s.dailyAccountability) { setDailyAccountability(s.dailyAccountability); localStorage.setItem("student_os_daily_accountability", JSON.stringify(s.dailyAccountability)); }
+              if (s.journalEntries) { setJournalEntries(s.journalEntries); localStorage.setItem("student_os_journal_entries", JSON.stringify(s.journalEntries)); }
+            }
           }
-        })
-        .catch(err => console.log("Silent cloud backup load skipped:", err));
-      } catch (e) {}
-    }
+        } catch (err) {
+          console.error("Firebase background data sync failed:", err);
+        }
+      } else {
+        setIsCloudLoggedIn(false);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   // Save changes helper
@@ -382,43 +394,38 @@ export default function App() {
       localStorage.removeItem("student_os_subject_performances");
 
       // Push silent sync if logged in
-      if (isCloudLoggedIn) {
-        const savedAuth = localStorage.getItem("student_os_cloud_auth");
-        if (savedAuth) {
-          try {
-            const { email, password } = JSON.parse(savedAuth);
-            const stateToSync = {
-              subjects,
-              tasks: [],
-              mistakes: [],
-              studyLogs: [],
-              universities,
-              coreStatus: cleanCoreStatus,
-              achievements: [],
-              subjectPerformances: cleanPerf,
-              vaultResources,
-              topicHeatmaps: [],
-              weeklyReportsList: [],
-              userProfile
-            };
-            fetch("/api/auth/sync-push", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ email, password, state: stateToSync })
-            }).catch(e => console.log("Cloud clear sync push failed:", e));
-          } catch (e) {}
-        }
+      if (isCloudLoggedIn && auth.currentUser) {
+        const stateToSync = {
+          subjects,
+          tasks: [],
+          mistakes: [],
+          studyLogs: [],
+          universities,
+          coreStatus: cleanCoreStatus,
+          achievements: [],
+          subjectPerformances: cleanPerf,
+          vaultResources,
+          topicHeatmaps: [],
+          weeklyReportsList: [],
+          userProfile,
+          decisionLogs: [],
+          dailyAccountability: [],
+          journalEntries: []
+        };
+        setDoc(doc(db, "users", auth.currentUser.uid), {
+          email: auth.currentUser.email,
+          state: stateToSync
+        }).catch(e => console.log("Firebase clear sync push failed:", e));
       }
 
       alert("Workspace reset successfully! All mock sessions, tasks, achievements, and logs have been wiped. You are ready to start fresh tomorrow!");
     }
   };
 
-  const triggerSilentSyncPush = (customProfile?: typeof userProfile, customAchs?: Achievement[]) => {
-    const savedAuth = localStorage.getItem("student_os_cloud_auth");
-    if (!savedAuth) return;
+  const triggerSilentSyncPush = async (customProfile?: typeof userProfile, customAchs?: Achievement[]) => {
+    const user = auth.currentUser;
+    if (!user) return;
     try {
-      const { email, password } = JSON.parse(savedAuth);
       const stateToSync = {
         subjects,
         tasks,
@@ -431,14 +438,18 @@ export default function App() {
         vaultResources,
         topicHeatmaps,
         weeklyReportsList,
-        userProfile: customProfile || userProfile
+        userProfile: customProfile || userProfile,
+        decisionLogs,
+        dailyAccountability,
+        journalEntries
       };
-      fetch("/api/auth/sync-push", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, state: stateToSync })
-      }).catch(e => console.log("Quiet sync push failed:", e));
-    } catch (e) {}
+      await setDoc(doc(db, "users", user.uid), {
+        email: user.email,
+        state: stateToSync
+      });
+    } catch (e) {
+      console.log("Quiet Firebase Firestore sync push failed:", e);
+    }
   };
 
   const handleCloudRegister = async () => {
@@ -462,19 +473,22 @@ export default function App() {
         vaultResources,
         topicHeatmaps,
         weeklyReportsList,
-        userProfile
+        userProfile,
+        decisionLogs,
+        dailyAccountability,
+        journalEntries
       };
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: cloudEmail, password: cloudPassword, state: stateToSync })
+      
+      const userCredential = await createUserWithEmailAndPassword(auth, cloudEmail, cloudPassword);
+      const user = userCredential.user;
+      
+      await setDoc(doc(db, "users", user.uid), {
+        email: cloudEmail.toLowerCase().trim(),
+        state: stateToSync
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Registration failed");
 
       setIsCloudLoggedIn(true);
-      setAuthSuccess("Account created successfully! Online sync active.");
-      localStorage.setItem("student_os_cloud_auth", JSON.stringify({ email: cloudEmail, password: cloudPassword }));
+      setAuthSuccess("Account created successfully with Firebase Auth! Online sync active.");
     } catch (e: any) {
       setAuthError(e.message);
     } finally {
@@ -491,33 +505,35 @@ export default function App() {
     }
     try {
       setIsSyncing(true);
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: cloudEmail, password: cloudPassword })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Login failed");
+      const userCredential = await signInWithEmailAndPassword(auth, cloudEmail, cloudPassword);
+      const user = userCredential.user;
 
       setIsCloudLoggedIn(true);
-      setAuthSuccess("Login successful! Sycned database data successfully.");
-      localStorage.setItem("student_os_cloud_auth", JSON.stringify({ email: cloudEmail, password: cloudPassword }));
+      setAuthSuccess("Login successful with Firebase Auth! Synced database data successfully.");
 
       // Hydrate from cloud data
-      if (data.state) {
+      const userDocRef = doc(db, "users", user.uid);
+      const docSnap = await getDoc(userDocRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
         const s = data.state;
-        if (s.subjects) { setSubjects(s.subjects); localStorage.setItem("student_os_subjects", JSON.stringify(s.subjects)); }
-        if (s.tasks) { setTasks(s.tasks); localStorage.setItem("student_os_tasks", JSON.stringify(s.tasks)); }
-        if (s.mistakes) { setMistakes(s.mistakes); localStorage.setItem("student_os_mistakes", JSON.stringify(s.mistakes)); }
-        if (s.studyLogs) { setStudyLogs(s.studyLogs); localStorage.setItem("student_os_study_logs", JSON.stringify(s.studyLogs)); }
-        if (s.universities) { setUniversities(s.universities); localStorage.setItem("student_os_universities", JSON.stringify(s.universities)); }
-        if (s.coreStatus) { setCoreStatus(s.coreStatus); localStorage.setItem("student_os_core_status", JSON.stringify(s.coreStatus)); }
-        if (s.achievements) { setAchievements(s.achievements); localStorage.setItem("student_os_achievements", JSON.stringify(s.achievements)); }
-        if (s.subjectPerformances) { setSubjectPerformances(s.subjectPerformances); localStorage.setItem("student_os_subject_performances", JSON.stringify(s.subjectPerformances)); }
-        if (s.vaultResources) { setVaultResources(s.vaultResources); localStorage.setItem("student_os_vault_resources", JSON.stringify(s.vaultResources)); }
-        if (s.topicHeatmaps) { setTopicHeatmaps(s.topicHeatmaps); localStorage.setItem("student_os_topic_heatmaps", JSON.stringify(s.topicHeatmaps)); }
-        if (s.weeklyReportsList) { setWeeklyReportsList(s.weeklyReportsList); localStorage.setItem("student_os_weekly_reports_list", JSON.stringify(s.weeklyReportsList)); }
-        if (s.userProfile) { setUserProfile(s.userProfile); localStorage.setItem("student_os_user_profile", JSON.stringify(s.userProfile)); }
+        if (s) {
+          if (s.subjects) { setSubjects(s.subjects); localStorage.setItem("student_os_subjects", JSON.stringify(s.subjects)); }
+          if (s.tasks) { setTasks(s.tasks); localStorage.setItem("student_os_tasks", JSON.stringify(s.tasks)); }
+          if (s.mistakes) { setMistakes(s.mistakes); localStorage.setItem("student_os_mistakes", JSON.stringify(s.mistakes)); }
+          if (s.studyLogs) { setStudyLogs(s.studyLogs); localStorage.setItem("student_os_study_logs", JSON.stringify(s.studyLogs)); }
+          if (s.universities) { setUniversities(s.universities); localStorage.setItem("student_os_universities", JSON.stringify(s.universities)); }
+          if (s.coreStatus) { setCoreStatus(s.coreStatus); localStorage.setItem("student_os_core_status", JSON.stringify(s.coreStatus)); }
+          if (s.achievements) { setAchievements(s.achievements); localStorage.setItem("student_os_achievements", JSON.stringify(s.achievements)); }
+          if (s.subjectPerformances) { setSubjectPerformances(s.subjectPerformances); localStorage.setItem("student_os_subject_performances", JSON.stringify(s.subjectPerformances)); }
+          if (s.vaultResources) { setVaultResources(s.vaultResources); localStorage.setItem("student_os_vault_resources", JSON.stringify(s.vaultResources)); }
+          if (s.topicHeatmaps) { setTopicHeatmaps(s.topicHeatmaps); localStorage.setItem("student_os_topic_heatmaps", JSON.stringify(s.topicHeatmaps)); }
+          if (s.weeklyReportsList) { setWeeklyReportsList(s.weeklyReportsList); localStorage.setItem("student_os_weekly_reports_list", JSON.stringify(s.weeklyReportsList)); }
+          if (s.userProfile) { setUserProfile(s.userProfile); localStorage.setItem("student_os_user_profile", JSON.stringify(s.userProfile)); }
+          if (s.decisionLogs) { setDecisionLogs(s.decisionLogs); localStorage.setItem("student_os_decision_logs", JSON.stringify(s.decisionLogs)); }
+          if (s.dailyAccountability) { setDailyAccountability(s.dailyAccountability); localStorage.setItem("student_os_daily_accountability", JSON.stringify(s.dailyAccountability)); }
+          if (s.journalEntries) { setJournalEntries(s.journalEntries); localStorage.setItem("student_os_journal_entries", JSON.stringify(s.journalEntries)); }
+        }
       }
     } catch (e: any) {
       setAuthError(e.message);
@@ -526,12 +542,16 @@ export default function App() {
     }
   };
 
-  const handleCloudLogout = () => {
-    setIsCloudLoggedIn(false);
-    setCloudEmail("");
-    setCloudPassword("");
-    localStorage.removeItem("student_os_cloud_auth");
-    setAuthSuccess("Logged out of cloud. Data will remain local.");
+  const handleCloudLogout = async () => {
+    try {
+      await signOut(auth);
+      setIsCloudLoggedIn(false);
+      setCloudEmail("");
+      setCloudPassword("");
+      setAuthSuccess("Logged out of Firebase cloud. Data will remain local.");
+    } catch (e: any) {
+      setAuthError(e.message);
+    }
   };
 
   const saveUserProfile = (profile: typeof userProfile) => {

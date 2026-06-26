@@ -3,6 +3,7 @@
   "appId": "1:307588942286:web:a2a2c724de8deed284039f",
   "apiKey": "AIzaSyBy_O7HUKve_gidBKrMIeo3uWS0tHaotAo",
   "authDomain": "bubbly-ward-l18qq.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-atlas-83aae2de-7ad3-478d-91ed-e8c1822b595a",
   "storageBucket": "bubbly-ward-l18qq.firebasestorage.app",
   "messagingSenderId": "307588942286",
   "measurementId": ""
