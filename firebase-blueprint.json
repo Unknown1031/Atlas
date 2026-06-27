@@ -1,0 +1,34 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "The complete coursework and progress dashboard state for an IBDP student.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "subjects": { "type": "array" },
+        "tasks": { "type": "array" },
+        "mistakes": { "type": "array" },
+        "studyLogs": { "type": "array" },
+        "universities": { "type": "array" },
+        "coreStatus": { "type": "object" },
+        "achievements": { "type": "array" },
+        "subjectPerformances": { "type": "array" },
+        "vaultResources": { "type": "array" },
+        "topicHeatmaps": { "type": "array" },
+        "weeklyReportsList": { "type": "array" },
+        "decisionLogs": { "type": "array" },
+        "dailyAccountability": { "type": "array" },
+        "journalEntries": { "type": "array" },
+        "userProfile": { "type": "object" }
+      },
+      "required": ["subjects"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User specific secure coursework database document."
+    }
+  }
+}

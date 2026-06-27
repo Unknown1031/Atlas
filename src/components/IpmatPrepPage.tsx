@@ -14,7 +14,9 @@ import {
   Clock,
   BookOpenCheck,
   Edit2,
-  Trash2
+  Trash2,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react";
 import { Task, StudyLog } from "../types";
 
@@ -25,6 +27,15 @@ interface IpmatPrepPageProps {
   onToggleTask: (taskId: string) => void;
   onDeleteTask?: (taskId: string) => void;
   onEditTask?: (task: Task) => void;
+  qaTopics: { key: string; label: string }[];
+  vaTopics: { key: string; label: string }[];
+  syllabusChecks: { [key: string]: boolean };
+  mockLogs: MockLog[];
+  onSaveQaTopics: (topics: { key: string; label: string }[]) => void;
+  onSaveVaTopics: (topics: { key: string; label: string }[]) => void;
+  onToggleSyllabus: (key: string) => void;
+  onAddMockLog: (log: MockLog) => void;
+  onDeleteMockLog: (id: string) => void;
 }
 
 interface MockLog {
@@ -37,13 +48,33 @@ interface MockLog {
   provider: string; // "IMS" | "Career Launcher" | "IQuanta" | "Other"
 }
 
+const CATEGORIES = [
+  { id: "va", name: "VERBAL ABILITY", prefix: "va_", section: "va" as const },
+  { id: "di", name: "DATA INTERPRETATION", prefix: "di_", section: "qa" as const },
+  { id: "ns", name: "NUMBER SYSTEM", prefix: "ns_", section: "qa" as const },
+  { id: "lr", name: "LOGICAL REASONING", prefix: "lr_", section: "qa" as const },
+  { id: "ar", name: "ARITHMETIC", prefix: "ar_", section: "qa" as const },
+  { id: "mm", name: "MORDERN MATHS", prefix: "mm_", section: "qa" as const },
+  { id: "al", name: "ALGEBRA", prefix: "al_", section: "qa" as const },
+  { id: "ge", name: "GEOMETRY", prefix: "ge_", section: "qa" as const }
+];
+
 export default function IpmatPrepPage({
   tasks,
   studyLogs,
   onAddTask,
   onToggleTask,
   onDeleteTask,
-  onEditTask
+  onEditTask,
+  qaTopics = [],
+  vaTopics = [],
+  syllabusChecks = {},
+  mockLogs = [],
+  onSaveQaTopics,
+  onSaveVaTopics,
+  onToggleSyllabus,
+  onAddMockLog,
+  onDeleteMockLog
 }: IpmatPrepPageProps) {
   const [showAddTaskForm, setShowAddTaskForm] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -52,10 +83,6 @@ export default function IpmatPrepPage({
   const [newTaskNotes, setNewTaskNotes] = useState("");
 
   const [showMockForm, setShowMockForm] = useState(false);
-  const [mockLogs, setMockLogs] = useState<MockLog[]>([
-    { id: "m1", testName: "National Mock 03", date: "2026-06-15", quantScore: 112, verbalScore: 145, percentile: 96.8, provider: "IMS" },
-    { id: "m2", testName: "IPMAT Speed Drill 4", date: "2026-06-21", quantScore: 124, verbalScore: 132, percentile: 98.1, provider: "Career Launcher" },
-  ]);
 
   const [newMockName, setNewMockName] = useState("");
   const [newMockDate, setNewMockDate] = useState("");
@@ -63,6 +90,51 @@ export default function IpmatPrepPage({
   const [newMockVerbal, setNewMockVerbal] = useState<number>(120);
   const [newMockPercentile, setNewMockPercentile] = useState<number>(95);
   const [newMockProvider, setNewMockProvider] = useState("IMS");
+
+  const [expandedCategories, setExpandedCategories] = useState<{ [key: string]: boolean }>({
+    va: true,
+    di: true,
+    ns: true,
+    lr: true,
+    ar: true,
+    mm: true,
+    al: true,
+    ge: true
+  });
+  const [addingTopicCategory, setAddingTopicCategory] = useState<string | null>(null);
+  const [newTopicLabel, setNewTopicLabel] = useState("");
+
+  const getDisplayLabel = (label: string) => {
+    return label.replace(/^[A-Z\s&]+:\s*/, "");
+  };
+
+  const getCategoryForTopic = (item: { key: string; label: string }, isVa: boolean) => {
+    for (const cat of CATEGORIES) {
+      if (item.key.startsWith(cat.prefix) || item.label.toUpperCase().startsWith(`${cat.name}:`)) {
+        return cat;
+      }
+    }
+    return isVa ? CATEGORIES[0] : CATEGORIES[1];
+  };
+
+  const groupedSyllabus = useMemo(() => {
+    const groups: { [catId: string]: { category: typeof CATEGORIES[0]; topics: typeof qaTopics } } = {};
+    CATEGORIES.forEach(cat => {
+      groups[cat.id] = { category: cat, topics: [] };
+    });
+
+    vaTopics.forEach(topic => {
+      const cat = getCategoryForTopic(topic, true);
+      groups[cat.id].topics.push(topic);
+    });
+
+    qaTopics.forEach(topic => {
+      const cat = getCategoryForTopic(topic, false);
+      groups[cat.id].topics.push(topic);
+    });
+
+    return CATEGORIES.map(cat => groups[cat.id]);
+  }, [qaTopics, vaTopics]);
 
   // Filter tasks specifically for IPMAT prep
   const ipmatTasks = tasks.filter((t) => t.subjectId === "IPMAT");
@@ -75,95 +147,34 @@ export default function IpmatPrepPage({
     .reduce((sum, l) => sum + l.duration, 0);
   const ipmatStudyHours = (ipmatStudyTimeMinutes / 60).toFixed(1);
 
-  // IPMAT Syllabus Checklist (Self Assessment)
-  const [syllabusChecks, setSyllabusChecks] = useState<{ [key: string]: boolean }>(() => {
-    const saved = localStorage.getItem("atlas_ipmat_syllabus_checks");
-    return saved ? JSON.parse(saved) : {
-      "qa_numbers": true,
-      "qa_percentages": true,
-      "qa_equations": false,
-      "qa_sequences": false,
-      "qa_geometry": false,
-      "qa_matrices": true,
-      "qa_combinatorics": false,
-      "va_rc": true,
-      "va_jumbles": false,
-      "va_grammar": true,
-      "va_vocab": false,
-    };
-  });
-
   const handleToggleSyllabus = (key: string) => {
-    const updated = {
-      ...syllabusChecks,
-      [key]: !syllabusChecks[key]
-    };
-    setSyllabusChecks(updated);
-    localStorage.setItem("atlas_ipmat_syllabus_checks", JSON.stringify(updated));
+    onToggleSyllabus(key);
   };
 
-  // Syllabus topics states
-  const [qaTopics, setQaTopics] = useState<{ key: string; label: string }[]>(() => {
-    const defaultQA = [
-      { key: "qa_numbers", label: "Number System & Properties" },
-      { key: "qa_arithmetic", label: "Arithmetic (Percentages, Profit & Loss, SI-CI)" },
-      { key: "qa_algebra", label: "Algebra (Equations, Inequalities, Logarithms)" },
-      { key: "qa_sequences", label: "Sequences, Series & Progressions" },
-      { key: "qa_geometry", label: "Geometry, Mensuration & Trigonometry" },
-      { key: "qa_combinatorics", label: "Combinatorics (Permutations & Combinations, Probability)" },
-      { key: "qa_matrices", label: "Matrices, Determinants & Set Theory" },
-      { key: "qa_di", label: "Data Interpretation (Tables, Graphs, Caselets)" },
-      { key: "qa_lr", label: "Logical Reasoning (Syllogisms, Arrangements)" },
-    ];
-    const saved = localStorage.getItem("atlas_ipmat_qa_topics");
-    if (!saved) return defaultQA;
-    try {
-      const parsed = JSON.parse(saved);
-      // If the saved topics are outdated or incomplete, migrate them
-      if (parsed.length < defaultQA.length || !parsed.some((t: any) => t.key === "qa_di")) {
-        localStorage.setItem("atlas_ipmat_qa_topics", JSON.stringify(defaultQA));
-        return defaultQA;
-      }
-      return parsed;
-    } catch (e) {
-      return defaultQA;
-    }
-  });
-
-  const [vaTopics, setVaTopics] = useState<{ key: string; label: string }[]>(() => {
-    const defaultVA = [
-      { key: "va_rc", label: "Reading Comprehension" },
-      { key: "va_completion", label: "Sentence Completion" },
-      { key: "va_vocab", label: "Vocabulary" },
-      { key: "va_correction", label: "Sentence Correction" },
-      { key: "va_jumbles", label: "Parajumbles" },
-      { key: "va_incorrect", label: "Incorrect Word" },
-      { key: "va_paracomp", label: "Paracompletion" },
-      { key: "va_analysis", label: "Conversation Analysis" },
-    ];
-    const saved = localStorage.getItem("atlas_ipmat_va_topics");
-    if (!saved) return defaultVA;
-    try {
-      const parsed = JSON.parse(saved);
-      // Migrate if outdated
-      if (parsed.length < defaultVA.length || !parsed.some((t: any) => t.key === "va_incorrect")) {
-        localStorage.setItem("atlas_ipmat_va_topics", JSON.stringify(defaultVA));
-        return defaultVA;
-      }
-      return parsed;
-    } catch (e) {
-      return defaultVA;
-    }
-  });
-
   const saveQaTopics = (updated: { key: string; label: string }[]) => {
-    setQaTopics(updated);
-    localStorage.setItem("atlas_ipmat_qa_topics", JSON.stringify(updated));
+    onSaveQaTopics(updated);
   };
 
   const saveVaTopics = (updated: { key: string; label: string }[]) => {
-    setVaTopics(updated);
-    localStorage.setItem("atlas_ipmat_va_topics", JSON.stringify(updated));
+    onSaveVaTopics(updated);
+  };
+
+  const handleAddSyllabusTopic = (catId: string) => {
+    if (!newTopicLabel.trim()) return;
+    const cat = CATEGORIES.find(c => c.id === catId);
+    if (!cat) return;
+
+    const newKey = `${cat.prefix}${Date.now().toString()}`;
+    const newTopic = { key: newKey, label: `${cat.name}: ${newTopicLabel.trim()}` };
+
+    if (cat.section === "va") {
+      saveVaTopics([...vaTopics, newTopic]);
+    } else {
+      saveQaTopics([...qaTopics, newTopic]);
+    }
+
+    setNewTopicLabel("");
+    setAddingTopicCategory(null);
   };
 
   // Editing state for Task & Syllabus Items
@@ -198,16 +209,16 @@ export default function IpmatPrepPage({
     if (!newMockName.trim() || !newMockDate) return;
 
     const newLog: MockLog = {
-      id: Date.now().toString(),
+      id: "mock_" + Date.now().toString(),
       testName: newMockName,
       date: newMockDate,
-      quantScore: newMockQuant,
-      verbalScore: newMockVerbal,
-      percentile: newMockPercentile,
+      quantScore: Number(newMockQuant),
+      verbalScore: Number(newMockVerbal),
+      percentile: Number(newMockPercentile),
       provider: newMockProvider
     };
 
-    setMockLogs([newLog, ...mockLogs]);
+    onAddMockLog(newLog);
     setNewMockName("");
     setNewMockDate("");
     setNewMockQuant(100);
@@ -276,204 +287,154 @@ export default function IpmatPrepPage({
             </h2>
             <p className="text-[11px] text-zinc-400">Self-assess your conceptual readiness for critical clusters.</p>
 
-            {/* Quantitative Section checklist */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-[10px] font-mono uppercase text-zinc-500 font-bold tracking-wider">Quantitative Ability</h3>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddSyllabusSection(showAddSyllabusSection === "qa" ? null : "qa");
-                    setNewSyllabusLabel("");
-                  }}
-                  className="text-[10px] text-orange-400 hover:text-orange-300 font-mono flex items-center gap-1"
-                >
-                  <Plus size={10} /> Add Topic
-                </button>
-              </div>
+            {/* 8 Categories of Syllabus */}
+            <div className="space-y-4 max-h-[650px] overflow-y-auto pr-1 scrollbar-thin">
+              {groupedSyllabus.map(({ category, topics }) => {
+                const completedCount = topics.filter(t => syllabusChecks[t.key]).length;
+                const totalCount = topics.length;
+                const percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+                const isExpanded = expandedCategories[category.id];
 
-              {showAddSyllabusSection === "qa" && (
-                <div className="flex items-center space-x-1.5 p-1.5 bg-zinc-950 border border-zinc-800 rounded-xl" id="add-qa-topic-form">
-                  <input
-                    type="text"
-                    required
-                    value={newSyllabusLabel}
-                    onChange={(e) => setNewSyllabusLabel(e.target.value)}
-                    placeholder="Topic name..."
-                    className="w-full bg-transparent text-zinc-100 text-xs px-2 py-1 outline-none font-medium"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && newSyllabusLabel.trim()) {
-                        const newKey = "qa_" + Date.now().toString();
-                        const updated = [...qaTopics, { key: newKey, label: newSyllabusLabel.trim() }];
-                        saveQaTopics(updated);
-                        setNewSyllabusLabel("");
-                        setShowAddSyllabusSection(null);
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (newSyllabusLabel.trim()) {
-                        const newKey = "qa_" + Date.now().toString();
-                        const updated = [...qaTopics, { key: newKey, label: newSyllabusLabel.trim() }];
-                        saveQaTopics(updated);
-                        setNewSyllabusLabel("");
-                        setShowAddSyllabusSection(null);
-                      }
-                    }}
-                    className="text-[10px] bg-orange-500 text-black px-2.5 py-1 font-semibold rounded-lg hover:bg-orange-600 transition"
+                return (
+                  <div 
+                    key={category.id} 
+                    className="border border-zinc-850/80 rounded-2xl bg-zinc-950/40 overflow-hidden"
                   >
-                    Save
-                  </button>
-                </div>
-              )}
-
-              <div className="space-y-1.5 text-xs">
-                {qaTopics.map((item) => (
-                  <div
-                    key={item.key}
-                    className="group flex items-center justify-between p-2 bg-zinc-950 border border-zinc-850 rounded-xl hover:bg-zinc-900 transition-colors"
-                  >
-                    <div
-                      onClick={() => handleToggleSyllabus(item.key)}
-                      className="flex items-center space-x-2.5 cursor-pointer flex-1 min-w-0"
+                    {/* Category Header */}
+                    <div 
+                      onClick={() => setExpandedCategories(prev => ({ ...prev, [category.id]: !prev[category.id] }))}
+                      className="flex items-center justify-between p-3 bg-zinc-950/80 hover:bg-zinc-900/60 cursor-pointer transition select-none"
                     >
-                      {syllabusChecks[item.key] ? (
-                        <CheckCircle size={14} className="text-emerald-400 flex-shrink-0" />
-                      ) : (
-                        <Circle size={14} className="text-zinc-600 flex-shrink-0" />
-                      )}
-                      <span className={`font-medium truncate ${syllabusChecks[item.key] ? "line-through text-zinc-500" : "text-zinc-300"}`}>
-                        {item.label}
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-1.5 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex-1 min-w-0 pr-2">
+                        <div className="flex items-center space-x-1.5">
+                          {isExpanded ? <ChevronDown size={14} className="text-zinc-500" /> : <ChevronRight size={14} className="text-zinc-500" />}
+                          <h3 className="text-[11px] font-mono uppercase text-zinc-300 font-bold tracking-wider truncate">
+                            {category.name}
+                          </h3>
+                        </div>
+                        {/* Progress Bar */}
+                        <div className="mt-1.5 flex items-center space-x-2">
+                          <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-orange-500 transition-all duration-300"
+                              style={{ width: `${percent}%` }}
+                            />
+                          </div>
+                          <span className="text-[9px] font-mono text-zinc-500 whitespace-nowrap">
+                            {completedCount}/{totalCount}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Add Topic under this category */}
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setEditingSyllabusItem({ key: item.key, label: item.label, section: "qa" });
+                          setAddingTopicCategory(addingTopicCategory === category.id ? null : category.id);
+                          setNewTopicLabel("");
                         }}
-                        className="p-1 text-zinc-500 hover:text-orange-400 transition"
+                        className="text-[10px] text-orange-400 hover:text-orange-300 font-mono flex items-center gap-1 p-1 bg-zinc-900 rounded-lg border border-zinc-800"
                       >
-                        <Edit2 size={12} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const updated = qaTopics.filter(t => t.key !== item.key);
-                          saveQaTopics(updated);
-                        }}
-                        className="p-1 text-zinc-500 hover:text-rose-400 transition"
-                      >
-                        <Trash2 size={12} />
+                        <Plus size={10} /> Add
                       </button>
                     </div>
+
+                    {/* Inline Form to Add Topic */}
+                    {addingTopicCategory === category.id && (
+                      <div className="p-2 bg-zinc-950 border-t border-zinc-900" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center space-x-1.5 p-1 bg-zinc-900 border border-zinc-800 rounded-xl">
+                          <input
+                            type="text"
+                            required
+                            autoFocus
+                            value={newTopicLabel}
+                            onChange={(e) => setNewTopicLabel(e.target.value)}
+                            placeholder={`New topic in ${category.name}...`}
+                            className="w-full bg-transparent text-zinc-100 text-xs px-2 py-1 outline-none font-medium"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                handleAddSyllabusTopic(category.id);
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleAddSyllabusTopic(category.id)}
+                            className="text-[10px] bg-orange-500 text-black px-2.5 py-1 font-semibold rounded-lg hover:bg-orange-600 transition"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Topics List */}
+                    {isExpanded && (
+                      <div className="p-2.5 space-y-1.5 border-t border-zinc-900 bg-zinc-900/10">
+                        {topics.length === 0 ? (
+                          <div className="text-[10px] text-zinc-600 font-mono text-center py-2">
+                            No topics added yet.
+                          </div>
+                        ) : (
+                          topics.map((item) => (
+                            <div
+                              key={item.key}
+                              className="group flex items-center justify-between p-2 bg-zinc-950/80 border border-zinc-900 rounded-xl hover:bg-zinc-900/40 transition-colors"
+                            >
+                              <div
+                                onClick={() => handleToggleSyllabus(item.key)}
+                                className="flex items-center space-x-2.5 cursor-pointer flex-1 min-w-0"
+                              >
+                                {syllabusChecks[item.key] ? (
+                                  <CheckCircle size={14} className="text-emerald-400 flex-shrink-0" />
+                                ) : (
+                                  <Circle size={14} className="text-zinc-700 flex-shrink-0" />
+                                )}
+                                <span className={`font-medium text-xs truncate ${syllabusChecks[item.key] ? "line-through text-zinc-500" : "text-zinc-300"}`}>
+                                  {getDisplayLabel(item.label)}
+                                </span>
+                              </div>
+                              <div className="flex items-center space-x-1.5 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingSyllabusItem({ 
+                                      key: item.key, 
+                                      label: getDisplayLabel(item.label), 
+                                      section: category.section 
+                                    });
+                                  }}
+                                  className="p-1 text-zinc-500 hover:text-orange-400 transition"
+                                >
+                                  <Edit2 size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (category.section === "va") {
+                                      const updated = vaTopics.filter(t => t.key !== item.key);
+                                      saveVaTopics(updated);
+                                    } else {
+                                      const updated = qaTopics.filter(t => t.key !== item.key);
+                                      saveQaTopics(updated);
+                                    }
+                                  }}
+                                  className="p-1 text-zinc-500 hover:text-rose-400 transition"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Verbal Section checklist */}
-            <div className="space-y-3 pt-4 border-t border-zinc-800">
-              <div className="flex items-center justify-between">
-                <h3 className="text-[10px] font-mono uppercase text-zinc-500 font-bold tracking-wider">Verbal Ability</h3>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddSyllabusSection(showAddSyllabusSection === "va" ? null : "va");
-                    setNewSyllabusLabel("");
-                  }}
-                  className="text-[10px] text-orange-400 hover:text-orange-300 font-mono flex items-center gap-1"
-                >
-                  <Plus size={10} /> Add Topic
-                </button>
-              </div>
-
-              {showAddSyllabusSection === "va" && (
-                <div className="flex items-center space-x-1.5 p-1.5 bg-zinc-950 border border-zinc-800 rounded-xl" id="add-va-topic-form">
-                  <input
-                    type="text"
-                    required
-                    value={newSyllabusLabel}
-                    onChange={(e) => setNewSyllabusLabel(e.target.value)}
-                    placeholder="Topic name..."
-                    className="w-full bg-transparent text-zinc-100 text-xs px-2 py-1 outline-none font-medium"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && newSyllabusLabel.trim()) {
-                        const newKey = "va_" + Date.now().toString();
-                        const updated = [...vaTopics, { key: newKey, label: newSyllabusLabel.trim() }];
-                        saveVaTopics(updated);
-                        setNewSyllabusLabel("");
-                        setShowAddSyllabusSection(null);
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (newSyllabusLabel.trim()) {
-                        const newKey = "va_" + Date.now().toString();
-                        const updated = [...vaTopics, { key: newKey, label: newSyllabusLabel.trim() }];
-                        saveVaTopics(updated);
-                        setNewSyllabusLabel("");
-                        setShowAddSyllabusSection(null);
-                      }
-                    }}
-                    className="text-[10px] bg-orange-500 text-black px-2.5 py-1 font-semibold rounded-lg hover:bg-orange-600 transition"
-                  >
-                    Save
-                  </button>
-                </div>
-              )}
-
-              <div className="space-y-1.5 text-xs">
-                {vaTopics.map((item) => (
-                  <div
-                    key={item.key}
-                    className="group flex items-center justify-between p-2 bg-zinc-950 border border-zinc-850 rounded-xl hover:bg-zinc-900 transition-colors"
-                  >
-                    <div
-                      onClick={() => handleToggleSyllabus(item.key)}
-                      className="flex items-center space-x-2.5 cursor-pointer flex-1 min-w-0"
-                    >
-                      {syllabusChecks[item.key] ? (
-                        <CheckCircle size={14} className="text-emerald-400 flex-shrink-0" />
-                      ) : (
-                        <Circle size={14} className="text-zinc-600 flex-shrink-0" />
-                      )}
-                      <span className={`font-medium truncate ${syllabusChecks[item.key] ? "line-through text-zinc-500" : "text-zinc-300"}`}>
-                        {item.label}
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-1.5 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingSyllabusItem({ key: item.key, label: item.label, section: "va" });
-                        }}
-                        className="p-1 text-zinc-500 hover:text-orange-400 transition"
-                      >
-                        <Edit2 size={12} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const updated = vaTopics.filter(t => t.key !== item.key);
-                          saveVaTopics(updated);
-                        }}
-                        className="p-1 text-zinc-500 hover:text-rose-400 transition"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
 
           </div>
@@ -796,6 +757,7 @@ export default function IpmatPrepPage({
                     <th className="py-2.5 text-center">Verbal</th>
                     <th className="py-2.5 text-center">Total</th>
                     <th className="py-2.5 text-right">Percentile</th>
+                    <th className="py-2.5 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-850">
@@ -807,6 +769,18 @@ export default function IpmatPrepPage({
                       <td className="py-3 text-center font-mono text-zinc-300">{log.verbalScore}</td>
                       <td className="py-3 text-center font-mono text-orange-400 font-bold">{log.quantScore + log.verbalScore}</td>
                       <td className="py-3 text-right font-mono text-emerald-400 font-bold">{log.percentile}%le</td>
+                      <td className="py-3 text-right">
+                        <button
+                          onClick={() => {
+                            if (confirm(`Delete mock test "${log.testName}"?`)) {
+                              onDeleteMockLog(log.id);
+                            }
+                          }}
+                          className="text-zinc-500 hover:text-red-400 p-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

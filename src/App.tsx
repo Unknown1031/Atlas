@@ -3,10 +3,11 @@ import { auth, db } from "./lib/firebase";
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
+  signInAnonymously,
   signOut, 
   onAuthStateChanged
 } from "firebase/auth";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, onSnapshot } from "firebase/firestore";
 import Sidebar from "./components/Sidebar";
 import DashboardHome from "./components/DashboardHome";
 import SubjectPage from "./components/SubjectPage";
@@ -71,6 +72,80 @@ import {
 
 const INITIAL_ACHIEVEMENTS: Achievement[] = [];
 
+const DEFAULT_QA_TOPICS = [
+  // DATA INTERPRETATION
+  { key: "di_tabular", label: "DATA INTERPRETATION: Tabular Data" },
+  { key: "di_bar", label: "DATA INTERPRETATION: Bar Graphs" },
+
+  // NUMBER SYSTEM
+  { key: "ns_remainder", label: "NUMBER SYSTEM: Remainder" },
+  { key: "ns_divisibility", label: "NUMBER SYSTEM: Divisibility Rules" },
+  { key: "ns_factorisation", label: "NUMBER SYSTEM: Factorisation" },
+  { key: "ns_miscellaneous", label: "NUMBER SYSTEM: Miscellaneous" },
+  { key: "ns_integral", label: "NUMBER SYSTEM: Integral Solutions" },
+  { key: "ns_hcf_lcm", label: "NUMBER SYSTEM: HCF & LCM" },
+  { key: "ns_unit_digit", label: "NUMBER SYSTEM: Unit Digit" },
+
+  // LOGICAL REASONING
+  { key: "lr_arrangements", label: "LOGICAL REASONING: Arrangements" },
+  { key: "lr_tournaments", label: "LOGICAL REASONING: Tournaments" },
+  { key: "lr_weights", label: "LOGICAL REASONING: Weights" },
+
+  // ARITHMETIC
+  { key: "ar_tsd", label: "ARITHMETIC: Time, Speed & Distance" },
+  { key: "ar_ratio", label: "ARITHMETIC: Ratio, Proportion & Variation" },
+  { key: "ar_mmm", label: "ARITHMETIC: Mean, Median & Mode" },
+  { key: "ar_interest", label: "ARITHMETIC: Simple & Compound Interest" },
+  { key: "ar_profit_loss", label: "ARITHMETIC: Profit & Loss" },
+  { key: "ar_work", label: "ARITHMETIC: Time & Work" },
+  { key: "ar_mixture", label: "ARITHMETIC: Mixture & Alligation" },
+
+  // MORDERN MATHS
+  { key: "mm_logarithms", label: "MORDERN MATHS: Logarithms" },
+  { key: "mm_pc", label: "MORDERN MATHS: Permutation & Combination" },
+  { key: "mm_set_theory", label: "MORDERN MATHS: Set Theory" },
+  { key: "mm_matrices", label: "MORDERN MATHS: Matrices & Determinants" },
+  { key: "mm_probability", label: "MORDERN MATHS: Probability" },
+  { key: "mm_binomial", label: "MORDERN MATHS: Binomial Theorem" },
+
+  // ALGEBRA
+  { key: "al_progression", label: "ALGEBRA: Progression & Series" },
+  { key: "al_modulus", label: "ALGEBRA: Modulus" },
+  { key: "al_polynomials", label: "ALGEBRA: Polynomials" },
+  { key: "al_functions", label: "ALGEBRA: Functions" },
+  { key: "al_linear", label: "ALGEBRA: Linear Equation" },
+  { key: "al_inequalities", label: "ALGEBRA: Inequalities" },
+  { key: "al_indices", label: "ALGEBRA: Indices" },
+  { key: "al_identities", label: "ALGEBRA: Identities" },
+  { key: "al_minima_maxima", label: "ALGEBRA: Minima & Maxima" },
+
+  // GEOMETRY
+  { key: "ge_circle", label: "GEOMETRY: Circle" },
+  { key: "ge_triangles", label: "GEOMETRY: Triangles" },
+  { key: "ge_trigonometry", label: "GEOMETRY: Trigonometry" },
+  { key: "ge_straight", label: "GEOMETRY: Straight Lines" },
+  { key: "ge_quadrilaterals", label: "GEOMETRY: Quadrilaterals" },
+  { key: "ge_conic", label: "GEOMETRY: Conic Sections" },
+  { key: "ge_solids", label: "GEOMETRY: Solids" },
+  { key: "ge_polygons", label: "GEOMETRY: Polygons" }
+];
+
+const DEFAULT_VA_TOPICS = [
+  { key: "va_rc", label: "VERBAL ABILITY: Reading Comprehension" },
+  { key: "va_completion", label: "VERBAL ABILITY: Sentence Completion" },
+  { key: "va_vocab", label: "VERBAL ABILITY: Vocabulary" },
+  { key: "va_correction", label: "VERBAL ABILITY: Sentence Correction" },
+  { key: "va_jumbles", label: "VERBAL ABILITY: Parajumbles" },
+  { key: "va_incorrect", label: "VERBAL ABILITY: Incorrect Word" },
+  { key: "va_paracomp", label: "VERBAL ABILITY: Paracompletion" },
+  { key: "va_analysis", label: "VERBAL ABILITY: Conversation Analysis" }
+];
+
+const DEFAULT_MOCK_LOGS = [
+  { id: "m1", testName: "National Mock 03", date: "2026-06-15", quantScore: 112, verbalScore: 145, percentile: 96.8, provider: "IMS" },
+  { id: "m2", testName: "IPMAT Speed Drill 4", date: "2026-06-21", quantScore: 124, verbalScore: 132, percentile: 98.1, provider: "Career Launcher" }
+];
+
 export default function App() {
   const [activePage, setActivePage] = useState<string>("home");
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
@@ -92,6 +167,12 @@ export default function App() {
   const [decisionLogs, setDecisionLogs] = useState<DecisionLog[]>([]);
   const [dailyAccountability, setDailyAccountability] = useState<DailyAccountability[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+
+  // IPMAT syllabus states
+  const [ipmatQaTopics, setIpmatQaTopics] = useState<{ key: string; label: string }[]>(DEFAULT_QA_TOPICS);
+  const [ipmatVaTopics, setIpmatVaTopics] = useState<{ key: string; label: string }[]>(DEFAULT_VA_TOPICS);
+  const [ipmatSyllabusChecks, setIpmatSyllabusChecks] = useState<{ [key: string]: boolean }>({});
+  const [ipmatMockLogs, setIpmatMockLogs] = useState<any[]>(DEFAULT_MOCK_LOGS);
 
   // User Profile & Accent Theme State (Requirement 11)
   const [userProfile, setUserProfile] = useState({
@@ -284,55 +365,218 @@ export default function App() {
       setJournalEntries(INITIAL_JOURNAL_ENTRIES);
     }
 
+    // 11d. IPMAT syllabus & mock states
+    const cachedIpmatQa = localStorage.getItem("student_os_ipmatQaTopics");
+    if (cachedIpmatQa) {
+      try { setIpmatQaTopics(JSON.parse(cachedIpmatQa)); } catch (e) {}
+    }
+    const cachedIpmatVa = localStorage.getItem("student_os_ipmatVaTopics");
+    if (cachedIpmatVa) {
+      try { setIpmatVaTopics(JSON.parse(cachedIpmatVa)); } catch (e) {}
+    }
+    const cachedIpmatChecks = localStorage.getItem("student_os_ipmatSyllabusChecks");
+    if (cachedIpmatChecks) {
+      try { setIpmatSyllabusChecks(JSON.parse(cachedIpmatChecks)); } catch (e) {}
+    }
+    const cachedIpmatMocks = localStorage.getItem("student_os_ipmatMockLogs");
+    if (cachedIpmatMocks) {
+      try { setIpmatMockLogs(JSON.parse(cachedIpmatMocks)); } catch (e) {}
+    }
+
     // 12. Listen to Firebase auth changes to pull synced data
+    let snapshotUnsubscribe: (() => void) | null = null;
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (snapshotUnsubscribe) {
+        snapshotUnsubscribe();
+        snapshotUnsubscribe = null;
+      }
+
       if (user) {
         setIsCloudLoggedIn(true);
-        setCloudEmail(user.email || "");
+        setCloudEmail(user.email || "Anonymous");
+        
         try {
           const userDocRef = doc(db, "users", user.uid);
-          const docSnap = await getDoc(userDocRef);
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            const s = data.state;
-            if (s) {
-              if (s.subjects) { setSubjects(s.subjects); localStorage.setItem("student_os_subjects", JSON.stringify(s.subjects)); }
-              if (s.tasks) { setTasks(s.tasks); localStorage.setItem("student_os_tasks", JSON.stringify(s.tasks)); }
-              if (s.mistakes) { setMistakes(s.mistakes); localStorage.setItem("student_os_mistakes", JSON.stringify(s.mistakes)); }
-              if (s.studyLogs) { setStudyLogs(s.studyLogs); localStorage.setItem("student_os_study_logs", JSON.stringify(s.studyLogs)); }
-              if (s.universities) { setUniversities(s.universities); localStorage.setItem("student_os_universities", JSON.stringify(s.universities)); }
-              if (s.coreStatus) { setCoreStatus(s.coreStatus); localStorage.setItem("student_os_core_status", JSON.stringify(s.coreStatus)); }
-              if (s.achievements) { setAchievements(s.achievements); localStorage.setItem("student_os_achievements", JSON.stringify(s.achievements)); }
-              if (s.subjectPerformances) { setSubjectPerformances(s.subjectPerformances); localStorage.setItem("student_os_subject_performances", JSON.stringify(s.subjectPerformances)); }
-              if (s.vaultResources) { setVaultResources(s.vaultResources); localStorage.setItem("student_os_vault_resources", JSON.stringify(s.vaultResources)); }
-              if (s.topicHeatmaps) { setTopicHeatmaps(s.topicHeatmaps); localStorage.setItem("student_os_topic_heatmaps", JSON.stringify(s.topicHeatmaps)); }
-              if (s.weeklyReportsList) { setWeeklyReportsList(s.weeklyReportsList); localStorage.setItem("student_os_weekly_reports_list", JSON.stringify(s.weeklyReportsList)); }
-              if (s.userProfile) { setUserProfile(s.userProfile); localStorage.setItem("student_os_user_profile", JSON.stringify(s.userProfile)); }
-              if (s.decisionLogs) { setDecisionLogs(s.decisionLogs); localStorage.setItem("student_os_decision_logs", JSON.stringify(s.decisionLogs)); }
-              if (s.dailyAccountability) { setDailyAccountability(s.dailyAccountability); localStorage.setItem("student_os_daily_accountability", JSON.stringify(s.dailyAccountability)); }
-              if (s.journalEntries) { setJournalEntries(s.journalEntries); localStorage.setItem("student_os_journal_entries", JSON.stringify(s.journalEntries)); }
+          
+          // Listen to the user's Firestore document in real-time
+          snapshotUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              const s = data.state;
+              if (s) {
+                if (s.subjects) { setSubjects(s.subjects); localStorage.setItem("student_os_subjects", JSON.stringify(s.subjects)); }
+                if (s.tasks) { setTasks(s.tasks); localStorage.setItem("student_os_tasks", JSON.stringify(s.tasks)); }
+                if (s.mistakes) { setMistakes(s.mistakes); localStorage.setItem("student_os_mistakes", JSON.stringify(s.mistakes)); }
+                if (s.studyLogs) { setStudyLogs(s.studyLogs); localStorage.setItem("student_os_study_logs", JSON.stringify(s.studyLogs)); }
+                if (s.universities) { setUniversities(s.universities); localStorage.setItem("student_os_universities", JSON.stringify(s.universities)); }
+                if (s.coreStatus) { setCoreStatus(s.coreStatus); localStorage.setItem("student_os_core_status", JSON.stringify(s.coreStatus)); }
+                if (s.achievements) { setAchievements(s.achievements); localStorage.setItem("student_os_achievements", JSON.stringify(s.achievements)); }
+                if (s.subjectPerformances) { setSubjectPerformances(s.subjectPerformances); localStorage.setItem("student_os_subject_performances", JSON.stringify(s.subjectPerformances)); }
+                if (s.vaultResources) { setVaultResources(s.vaultResources); localStorage.setItem("student_os_vault_resources", JSON.stringify(s.vaultResources)); }
+                if (s.topicHeatmaps) { setTopicHeatmaps(s.topicHeatmaps); localStorage.setItem("student_os_topic_heatmaps", JSON.stringify(s.topicHeatmaps)); }
+                if (s.weeklyReportsList) { setWeeklyReportsList(s.weeklyReportsList); localStorage.setItem("student_os_weekly_reports_list", JSON.stringify(s.weeklyReportsList)); }
+                if (s.userProfile) { setUserProfile(s.userProfile); localStorage.setItem("student_os_user_profile", JSON.stringify(s.userProfile)); }
+                if (s.decisionLogs) { setDecisionLogs(s.decisionLogs); localStorage.setItem("student_os_decision_logs", JSON.stringify(s.decisionLogs)); }
+                if (s.dailyAccountability) { setDailyAccountability(s.dailyAccountability); localStorage.setItem("student_os_daily_accountability", JSON.stringify(s.dailyAccountability)); }
+                if (s.journalEntries) { setJournalEntries(s.journalEntries); localStorage.setItem("student_os_journal_entries", JSON.stringify(s.journalEntries)); }
+                
+                // IPMAT
+                if (s.ipmatQaTopics) { setIpmatQaTopics(s.ipmatQaTopics); localStorage.setItem("student_os_ipmatQaTopics", JSON.stringify(s.ipmatQaTopics)); }
+                if (s.ipmatVaTopics) { setIpmatVaTopics(s.ipmatVaTopics); localStorage.setItem("student_os_ipmatVaTopics", JSON.stringify(s.ipmatVaTopics)); }
+                if (s.ipmatSyllabusChecks) { setIpmatSyllabusChecks(s.ipmatSyllabusChecks); localStorage.setItem("student_os_ipmatSyllabusChecks", JSON.stringify(s.ipmatSyllabusChecks)); }
+                if (s.ipmatMockLogs) { setIpmatMockLogs(s.ipmatMockLogs); localStorage.setItem("student_os_ipmatMockLogs", JSON.stringify(s.ipmatMockLogs)); }
+              }
+            } else {
+              // Document doesn't exist yet, initialize it
+              const initialProfile = {
+                name: user.isAnonymous ? "Guest Scholar" : (user.email ? user.email.split("@")[0] : "IBDP Student"),
+                email: user.email || "",
+                pfpUrl: "",
+                accent: "orange" as "orange" | "emerald" | "indigo" | "rose"
+              };
+              
+              const initialState = {
+                subjects: INITIAL_SUBJECTS,
+                tasks: INITIAL_TASKS,
+                mistakes: INITIAL_MISTAKES,
+                studyLogs: INITIAL_STUDY_LOGS,
+                universities: INITIAL_UNIVERSITIES,
+                coreStatus: INITIAL_STATUS,
+                achievements: INITIAL_ACHIEVEMENTS,
+                subjectPerformances: INITIAL_SUBJECT_PERFORMANCE,
+                vaultResources: INITIAL_VAULT_RESOURCES,
+                topicHeatmaps: INITIAL_TOPIC_HEATMAPS,
+                weeklyReportsList: INITIAL_WEEKLY_REPORTS,
+                userProfile: initialProfile,
+                decisionLogs: INITIAL_DECISIONS,
+                dailyAccountability: INITIAL_ACCOUNTABILITY,
+                journalEntries: INITIAL_JOURNAL_ENTRIES,
+                // IPMAT defaults
+                ipmatQaTopics: DEFAULT_QA_TOPICS,
+                ipmatVaTopics: DEFAULT_VA_TOPICS,
+                ipmatSyllabusChecks: {},
+                ipmatMockLogs: DEFAULT_MOCK_LOGS
+              };
+
+              setDoc(userDocRef, {
+                email: user.email || "anonymous",
+                state: initialState
+              }).catch(err => console.error("Initial Firestore document setup failed:", err));
             }
-          }
+          }, (err) => {
+            console.error("Firestore real-time snapshot subscription failed:", err);
+          });
         } catch (err) {
-          console.error("Firebase background data sync failed:", err);
+          console.error("Firebase background data sync setup failed:", err);
         }
       } else {
         setIsCloudLoggedIn(false);
+        // Automatically sign in anonymously so we always have a persistent Firestore document
+        signInAnonymously(auth).catch((err) => {
+          console.error("Auto-anonymous authentication failed on start:", err);
+        });
       }
     });
 
     return () => {
       unsubscribe();
+      if (snapshotUnsubscribe) {
+        snapshotUnsubscribe();
+      }
     };
   }, []);
 
+  // Centralized robust state & Firestore synchronization helper
+  const updateWorkspaceState = async (updatedFields: {
+    subjects?: Subject[];
+    tasks?: Task[];
+    mistakes?: Mistake[];
+    studyLogs?: StudyLog[];
+    universities?: University[];
+    coreStatus?: IaEeCasStatus | null;
+    achievements?: Achievement[];
+    subjectPerformances?: SubjectPerformance[];
+    vaultResources?: VaultResource[];
+    topicHeatmaps?: TopicHeatmap[];
+    weeklyReportsList?: WeeklyPerformanceReport[];
+    userProfile?: typeof userProfile;
+    decisionLogs?: DecisionLog[];
+    dailyAccountability?: DailyAccountability[];
+    journalEntries?: JournalEntry[];
+    ipmatQaTopics?: { key: string; label: string }[];
+    ipmatVaTopics?: { key: string; label: string }[];
+    ipmatSyllabusChecks?: { [key: string]: boolean };
+    ipmatMockLogs?: any[];
+  }) => {
+    // 1. Optimistic UI Updates
+    if (updatedFields.subjects !== undefined) setSubjects(updatedFields.subjects);
+    if (updatedFields.tasks !== undefined) setTasks(updatedFields.tasks);
+    if (updatedFields.mistakes !== undefined) setMistakes(updatedFields.mistakes);
+    if (updatedFields.studyLogs !== undefined) setStudyLogs(updatedFields.studyLogs);
+    if (updatedFields.universities !== undefined) setUniversities(updatedFields.universities);
+    if (updatedFields.coreStatus !== undefined) setCoreStatus(updatedFields.coreStatus);
+    if (updatedFields.achievements !== undefined) setAchievements(updatedFields.achievements);
+    if (updatedFields.subjectPerformances !== undefined) setSubjectPerformances(updatedFields.subjectPerformances);
+    if (updatedFields.vaultResources !== undefined) setVaultResources(updatedFields.vaultResources);
+    if (updatedFields.topicHeatmaps !== undefined) setTopicHeatmaps(updatedFields.topicHeatmaps);
+    if (updatedFields.weeklyReportsList !== undefined) setWeeklyReportsList(updatedFields.weeklyReportsList);
+    if (updatedFields.userProfile !== undefined) setUserProfile(updatedFields.userProfile);
+    if (updatedFields.decisionLogs !== undefined) setDecisionLogs(updatedFields.decisionLogs);
+    if (updatedFields.dailyAccountability !== undefined) setDailyAccountability(updatedFields.dailyAccountability);
+    if (updatedFields.journalEntries !== undefined) setJournalEntries(updatedFields.journalEntries);
+    if (updatedFields.ipmatQaTopics !== undefined) setIpmatQaTopics(updatedFields.ipmatQaTopics);
+    if (updatedFields.ipmatVaTopics !== undefined) setIpmatVaTopics(updatedFields.ipmatVaTopics);
+    if (updatedFields.ipmatSyllabusChecks !== undefined) setIpmatSyllabusChecks(updatedFields.ipmatSyllabusChecks);
+    if (updatedFields.ipmatMockLogs !== undefined) setIpmatMockLogs(updatedFields.ipmatMockLogs);
+
+    // 2. Offline caching fallback
+    Object.entries(updatedFields).forEach(([key, val]) => {
+      if (val !== undefined) {
+        localStorage.setItem(`student_os_${key}`, JSON.stringify(val));
+      }
+    });
+
+    // 3. Real-time Firebase Firestore Sync
+    const user = auth.currentUser;
+    if (user) {
+      try {
+        const userDocRef = doc(db, "users", user.uid);
+        const fullState = {
+          subjects: updatedFields.subjects !== undefined ? updatedFields.subjects : subjects,
+          tasks: updatedFields.tasks !== undefined ? updatedFields.tasks : tasks,
+          mistakes: updatedFields.mistakes !== undefined ? updatedFields.mistakes : mistakes,
+          studyLogs: updatedFields.studyLogs !== undefined ? updatedFields.studyLogs : studyLogs,
+          universities: updatedFields.universities !== undefined ? updatedFields.universities : universities,
+          coreStatus: updatedFields.coreStatus !== undefined ? updatedFields.coreStatus : coreStatus,
+          achievements: updatedFields.achievements !== undefined ? updatedFields.achievements : achievements,
+          subjectPerformances: updatedFields.subjectPerformances !== undefined ? updatedFields.subjectPerformances : subjectPerformances,
+          vaultResources: updatedFields.vaultResources !== undefined ? updatedFields.vaultResources : vaultResources,
+          topicHeatmaps: updatedFields.topicHeatmaps !== undefined ? updatedFields.topicHeatmaps : topicHeatmaps,
+          weeklyReportsList: updatedFields.weeklyReportsList !== undefined ? updatedFields.weeklyReportsList : weeklyReportsList,
+          userProfile: updatedFields.userProfile !== undefined ? updatedFields.userProfile : userProfile,
+          decisionLogs: updatedFields.decisionLogs !== undefined ? updatedFields.decisionLogs : decisionLogs,
+          dailyAccountability: updatedFields.dailyAccountability !== undefined ? updatedFields.dailyAccountability : dailyAccountability,
+          journalEntries: updatedFields.journalEntries !== undefined ? updatedFields.journalEntries : journalEntries,
+          ipmatQaTopics: updatedFields.ipmatQaTopics !== undefined ? updatedFields.ipmatQaTopics : ipmatQaTopics,
+          ipmatVaTopics: updatedFields.ipmatVaTopics !== undefined ? updatedFields.ipmatVaTopics : ipmatVaTopics,
+          ipmatSyllabusChecks: updatedFields.ipmatSyllabusChecks !== undefined ? updatedFields.ipmatSyllabusChecks : ipmatSyllabusChecks,
+          ipmatMockLogs: updatedFields.ipmatMockLogs !== undefined ? updatedFields.ipmatMockLogs : ipmatMockLogs
+        };
+
+        await setDoc(userDocRef, {
+          email: user.email || "anonymous",
+          state: fullState
+        });
+      } catch (e) {
+        console.error("Firestore sync write failed:", e);
+      }
+    }
+  };
+
   // Save changes helper
   const saveAchievements = (newAchs: Achievement[]) => {
-    setAchievements(newAchs);
-    localStorage.setItem("student_os_achievements", JSON.stringify(newAchs));
-    if (isCloudLoggedIn) {
-      triggerSilentSyncPush(undefined, newAchs);
-    }
+    updateWorkspaceState({ achievements: newAchs });
   };
 
   const handleResetAllData = () => {
@@ -555,83 +799,43 @@ export default function App() {
   };
 
   const saveUserProfile = (profile: typeof userProfile) => {
-    setUserProfile(profile);
-    localStorage.setItem("student_os_user_profile", JSON.stringify(profile));
-    if (isCloudLoggedIn) {
-      triggerSilentSyncPush(profile);
-    }
+    updateWorkspaceState({ userProfile: profile });
   };
 
   const saveTasks = (newTasks: Task[]) => {
-    setTasks(newTasks);
-    localStorage.setItem("student_os_tasks", JSON.stringify(newTasks));
-    if (isCloudLoggedIn) {
-      setTimeout(() => triggerSilentSyncPush(), 50);
-    }
+    updateWorkspaceState({ tasks: newTasks });
   };
 
   const saveMistakes = (newMistakes: Mistake[]) => {
-    setMistakes(newMistakes);
-    localStorage.setItem("student_os_mistakes", JSON.stringify(newMistakes));
-    if (isCloudLoggedIn) {
-      setTimeout(() => triggerSilentSyncPush(), 50);
-    }
+    updateWorkspaceState({ mistakes: newMistakes });
   };
 
   const saveLogs = (newLogs: StudyLog[]) => {
-    setStudyLogs(newLogs);
-    localStorage.setItem("student_os_study_logs", JSON.stringify(newLogs));
-    if (isCloudLoggedIn) {
-      setTimeout(() => triggerSilentSyncPush(), 50);
-    }
+    updateWorkspaceState({ studyLogs: newLogs });
   };
 
   const saveUnis = (newUnis: University[]) => {
-    setUniversities(newUnis);
-    localStorage.setItem("student_os_universities", JSON.stringify(newUnis));
-    if (isCloudLoggedIn) {
-      setTimeout(() => triggerSilentSyncPush(), 50);
-    }
+    updateWorkspaceState({ universities: newUnis });
   };
 
   const saveCoreStatus = (newCore: IaEeCasStatus) => {
-    setCoreStatus(newCore);
-    localStorage.setItem("student_os_core_status", JSON.stringify(newCore));
-    if (isCloudLoggedIn) {
-      setTimeout(() => triggerSilentSyncPush(), 50);
-    }
+    updateWorkspaceState({ coreStatus: newCore });
   };
 
   const saveSubjectPerformances = (newPerf: SubjectPerformance[]) => {
-    setSubjectPerformances(newPerf);
-    localStorage.setItem("student_os_subject_performances", JSON.stringify(newPerf));
-    if (isCloudLoggedIn) {
-      setTimeout(() => triggerSilentSyncPush(), 50);
-    }
+    updateWorkspaceState({ subjectPerformances: newPerf });
   };
 
   const saveVaultResources = (newRes: VaultResource[]) => {
-    setVaultResources(newRes);
-    localStorage.setItem("student_os_vault_resources", JSON.stringify(newRes));
-    if (isCloudLoggedIn) {
-      setTimeout(() => triggerSilentSyncPush(), 50);
-    }
+    updateWorkspaceState({ vaultResources: newRes });
   };
 
   const saveTopicHeatmaps = (newHeats: TopicHeatmap[]) => {
-    setTopicHeatmaps(newHeats);
-    localStorage.setItem("student_os_topic_heatmaps", JSON.stringify(newHeats));
-    if (isCloudLoggedIn) {
-      setTimeout(() => triggerSilentSyncPush(), 50);
-    }
+    updateWorkspaceState({ topicHeatmaps: newHeats });
   };
 
   const saveWeeklyReportsList = (newReps: WeeklyPerformanceReport[]) => {
-    setWeeklyReportsList(newReps);
-    localStorage.setItem("student_os_weekly_reports_list", JSON.stringify(newReps));
-    if (isCloudLoggedIn) {
-      setTimeout(() => triggerSilentSyncPush(), 50);
-    }
+    updateWorkspaceState({ weeklyReportsList: newReps });
   };
 
   // Log handlers
@@ -828,6 +1032,24 @@ export default function App() {
             onToggleTask={handleToggleTask}
             onDeleteTask={handleDeleteTask}
             onEditTask={handleEditTask}
+            qaTopics={ipmatQaTopics}
+            vaTopics={ipmatVaTopics}
+            syllabusChecks={ipmatSyllabusChecks}
+            mockLogs={ipmatMockLogs}
+            onSaveQaTopics={(topics) => updateWorkspaceState({ ipmatQaTopics: topics })}
+            onSaveVaTopics={(topics) => updateWorkspaceState({ ipmatVaTopics: topics })}
+            onToggleSyllabus={(key) => {
+              const updated = { ...ipmatSyllabusChecks, [key]: !ipmatSyllabusChecks[key] };
+              updateWorkspaceState({ ipmatSyllabusChecks: updated });
+            }}
+            onAddMockLog={(log) => {
+              const updated = [log, ...ipmatMockLogs];
+              updateWorkspaceState({ ipmatMockLogs: updated });
+            }}
+            onDeleteMockLog={(id) => {
+              const updated = ipmatMockLogs.filter(m => m.id !== id);
+              updateWorkspaceState({ ipmatMockLogs: updated });
+            }}
           />
         );
 
